@@ -26,10 +26,10 @@ class TestSignals(object):
     def test_delete_canonical_page(self):
         lang = language.LanguageFactory(is_default=False, code='fr', position=2)
 
-        assert TranslatablePage.objects.filter(language=lang, canonical_page=self.last_page).exists()
+        assert TranslatablePage.objects.filter(language=lang, canonical=self.last_page).exists()
 
         self.last_page.delete()
-        assert not TranslatablePage.objects.filter(language=lang, canonical_page=self.last_page).exists()
+        assert not TranslatablePage.objects.filter(language=lang, canonical=self.last_page).exists()
 
     @override_settings(WAGTAILTRANS_SYNC_TREE=True)
     def test_do_not_copy_non_translatable_page(self):
@@ -37,7 +37,7 @@ class TestSignals(object):
         self.last_page.add_child(instance=page)
         lang = language.LanguageFactory(is_default=False, code='fr', position=2)
 
-        assert TranslatablePage.objects.filter(language=lang, canonical_page=self.last_page).exists()
+        assert TranslatablePage.objects.filter(language=lang, canonical=self.last_page).exists()
 
 
 @pytest.mark.django_db
@@ -58,10 +58,10 @@ class TestSignalsLanguagesPerSite(object):
     def test_add_language_to_site(self):
         with override_settings(WAGTAILTRANS_SYNC_TREE=True, WAGTAILTRANS_LANGUAGES_PER_SITE=True):
             lang = language.LanguageFactory(is_default=False, code='fr', position=2)
-            assert not TranslatablePage.objects.filter(language=lang, canonical_page=self.last_page).exists()
+            assert not TranslatablePage.objects.filter(language=lang, canonical=self.last_page).exists()
             self.site.sitelanguages.other_languages.add(lang)
             self.site.sitelanguages.save()
-            assert TranslatablePage.objects.filter(language=lang, canonical_page=self.last_page).exists()
+            assert TranslatablePage.objects.filter(language=lang, canonical=self.last_page).exists()
 
 
 @pytest.mark.django_db

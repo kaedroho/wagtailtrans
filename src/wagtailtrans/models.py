@@ -120,8 +120,8 @@ class AdminTranslatablePageForm(WagtailAdminPageForm):
     def __init__(self, *args, **kwargs):
         super(AdminTranslatablePageForm, self).__init__(*args, **kwargs)
 
-        self.fields['canonical_page'].widget = CanonicalPageWidget(
-            canonical_page=self.instance.specific.canonical_page)
+        self.fields['canonical'].widget = CanonicalPageWidget(
+            canonical_page=self.instance.specific.canonical)
 
         language_display = Language.objects.filter(pk=self.initial['language']).first()
         if self.instance.specific.is_canonical and language_display:
@@ -144,7 +144,7 @@ class TranslatablePage(Page):
 
     #: Defined with a unique name, to prevent field clashes..
     translatable_page_ptr = models.OneToOneField(Page, parent_link=True, related_name='+', on_delete=models.CASCADE)
-    canonical_page = models.ForeignKey(
+    canonical = models.ForeignKey(
         'self', related_name='translations', blank=True, null=True, on_delete=models.SET_NULL)
     language = models.ForeignKey(Language, related_name='pages', on_delete=models.PROTECT, default=_language_default)
 
@@ -159,7 +159,7 @@ class TranslatablePage(Page):
             heading=_("Translations"),
             children=[
                 FieldPanel('language'),
-                PageChooserPanel('canonical_page'),
+                PageChooserPanel('canonical'),
             ]
         )
     ]
@@ -203,14 +203,14 @@ class TranslatablePage(Page):
 
         """
         translations = self.get_translations(only_live=False)
-        if getattr(canonical_target, 'canonical_page', False):
-            canonical_target = canonical_target.canonical_page
+        if getattr(canonical_target, 'canonical', None):
+            canonical_target = canonical_target.canonical
 
         for page in translations:
             # get target because at this point we assume the tree is in sync.
             target = TranslatablePage.objects.filter(
                 Q(language=page.language),
-                Q(canonical_page=canonical_target) | Q(pk=canonical_target.pk)
+                Q(canonical=canonical_target) | Q(pk=canonical_target.pk)
             ).get()
 
             page.move(target=target, pos=pos, suppress_sync=True)
@@ -225,8 +225,8 @@ class TranslatablePage(Page):
         :return: TranslatablePage instance
 
         """
-        canonical_page_id = self.canonical_page_id or self.pk
-        translations = TranslatablePage.objects.filter(Q(canonical_page=canonical_page_id) | Q(pk=canonical_page_id))
+        canonical_id = self.canonical_id or self.pk
+        translations = TranslatablePage.objects.filter(Q(canonical=canonical_id) | Q(pk=canonical_id))
 
         if not include_self:
             translations = translations.exclude(pk=self.pk)
@@ -243,7 +243,7 @@ class TranslatablePage(Page):
         :return: Boolean
 
         """
-        return language.pages.filter(canonical_page=self).exists()
+        return language.pages.filter(canonical=self).exists()
 
     def get_translation_parent(self, language):
         site = self.get_site()
@@ -252,7 +252,7 @@ class TranslatablePage(Page):
 
         translation_parent = (
             TranslatablePage.objects
-            .filter(canonical_page=self.get_parent(), language=language, path__startswith=site.root_page.path)
+            .filter(canonical=self.get_parent(), language=language, path__startswith=site.root_page.path)
             .first()
         )
         return translation_parent
@@ -283,7 +283,7 @@ class TranslatablePage(Page):
             'slug': slug,
             'language': language,
             'live': False,
-            'canonical_page': self,
+            'canonical': self,
         }
 
         if copy_fields:
@@ -305,7 +305,7 @@ class TranslatablePage(Page):
 
     @cached_property
     def is_canonical(self):
-        return not self.canonical_page_id and self.has_translations
+        return not self.canonical_id and self.has_translations
 
     class Meta:
         verbose_name = _('Translatable page')

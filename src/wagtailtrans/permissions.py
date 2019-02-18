@@ -86,7 +86,7 @@ class TranslatablePagePermissionTester(PagePermissionTester):
         :return: Boolean
 
         """
-        has_canonical = getattr(self.page.specific, 'canonical_page', False)
+        has_canonical = hasattr(self.page.specific, 'canonical')
         if (
             has_canonical and get_wagtailtrans_setting('SYNC_TREE') and
             not self.user.is_superuser

@@ -29,11 +29,11 @@ class TestTranslatablePage(object):
         self.canonical_page.add_child(instance=subpage1)
         self.canonical_page.add_child(instance=subpage2)
 
-        TranslatablePageFactory.build(language=nl, title='subpage1 in NL tree', canonical_page=subpage1)
-        TranslatablePageFactory.build(language=nl, title='subpage2 in NL tree', canonical_page=subpage2)
+        TranslatablePageFactory.build(language=nl, title='subpage1 in NL tree', canonical=subpage1)
+        TranslatablePageFactory.build(language=nl, title='subpage2 in NL tree', canonical=subpage2)
 
         change_default_language(nl)
 
         assert nl.is_default
-        assert models.TranslatablePage.objects.filter(language=en).first().canonical_page.language == nl
-        assert models.TranslatablePage.objects.filter(language=nl).first().canonical_page is None
+        assert models.TranslatablePage.objects.filter(language=en).first().canonical.language == nl
+        assert models.TranslatablePage.objects.filter(language=nl).first().canonical is None

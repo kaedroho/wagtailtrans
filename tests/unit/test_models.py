@@ -143,7 +143,7 @@ class TestTranslatablePage(object):
 
         assert nl_page.title == self.canonical_page.title
         assert nl_page.slug == '{}-{}'.format(self.canonical_page.slug, 'nl')
-        assert nl_page.canonical_page == self.canonical_page
+        assert nl_page.canonical == self.canonical_page
         assert nl_page.get_parent() == self.canonical_page.get_parent()
 
         # Other HomePage field should have been copied
@@ -231,10 +231,10 @@ class TestTranslatablePage(object):
         self.canonical_page.add_child(instance=subpage2)
         subpage1.add_child(instance=leaf_page)
 
-        nl_subpage1 = TranslatablePageFactory.build(language=nl, title='subpage1 in NL tree', canonical_page=subpage1)
-        nl_subpage2 = TranslatablePageFactory.build(language=nl, title='subpage2 in NL tree', canonical_page=subpage2)
+        nl_subpage1 = TranslatablePageFactory.build(language=nl, title='subpage1 in NL tree', canonical=subpage1)
+        nl_subpage2 = TranslatablePageFactory.build(language=nl, title='subpage2 in NL tree', canonical=subpage2)
         nl_leaf_page = TranslatablePageFactory.build(
-            language=nl, title='leafpage in NL tree', canonical_page=leaf_page)
+            language=nl, title='leafpage in NL tree', canonical=leaf_page)
         nl_root.add_child(instance=nl_subpage1)
         nl_root.add_child(instance=nl_subpage2)
         nl_subpage1.add_child(instance=nl_leaf_page)
