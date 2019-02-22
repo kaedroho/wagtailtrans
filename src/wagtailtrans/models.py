@@ -314,6 +314,10 @@ class TranslatableMixin(models.Model):
 class TranslatablePage(TranslatableMixin, Page):
     #: Defined with a unique name, to prevent field clashes..
     translatable_page_ptr = models.OneToOneField(Page, parent_link=True, related_name='+', on_delete=models.CASCADE)
+
+    # Redefine with related_name='pages' for backwards compatibility
+    language = models.ForeignKey(Language, on_delete=models.PROTECT, default=_language_default, related_name='pages')
+
     is_creatable = False
 
     search_fields = Page.search_fields + [
