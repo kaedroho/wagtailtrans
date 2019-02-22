@@ -111,7 +111,8 @@ class Language(models.Model):
         return force_text(dict(settings.LANGUAGES).get(self.code))
 
     def has_pages_in_site(self, site):
-        return self.pages.filter(path__startswith=site.root_page.path).exists()
+        return True  # FIXME
+        # return self.pages.filter(path__startswith=site.root_page.path).exists()
 
 
 class AdminTranslatablePageForm(WagtailAdminPageForm):
@@ -140,38 +141,13 @@ def _language_default():
         return default_language.pk
 
 
-class TranslatablePage(Page):
-
-    #: Defined with a unique name, to prevent field clashes..
-    translatable_page_ptr = models.OneToOneField(Page, parent_link=True, related_name='+', on_delete=models.CASCADE)
+class TranslatableMixin(models.Model):
     canonical_page = models.ForeignKey(
         'self', related_name='translations', blank=True, null=True, on_delete=models.SET_NULL)
-    language = models.ForeignKey(Language, related_name='pages', on_delete=models.PROTECT, default=_language_default)
-
-    is_creatable = False
-
-    search_fields = Page.search_fields + [
-        FilterField('language_id'),
-    ]
-
-    settings_panels = Page.settings_panels + [
-        MultiFieldPanel(
-            heading=_("Translations"),
-            children=[
-                FieldPanel('language'),
-                PageChooserPanel('canonical_page'),
-            ]
-        )
-    ]
-
-    base_form_class = AdminTranslatablePageForm
+    language = models.ForeignKey(Language, on_delete=models.PROTECT, default=_language_default)
 
     def get_admin_display_title(self):
         return "{} ({})".format(super(TranslatablePage, self).get_admin_display_title(), self.language)
-
-    def serve(self, request, *args, **kwargs):
-        activate(self.language.code)
-        return super(TranslatablePage, self).serve(request, *args, **kwargs)
 
     def move(self, target, pos=None, suppress_sync=False):
         """Move the page to another target.
@@ -181,7 +157,7 @@ class TranslatablePage(Page):
         :param suppress_sync: suppress syncing the translated pages
 
         """
-        super(TranslatablePage, self).move(target, pos)
+        super(TranslatableMixin, self).move(target, pos)
 
         if get_wagtailtrans_setting('LANGUAGES_PER_SITE'):
             site = self.get_site()
@@ -206,9 +182,11 @@ class TranslatablePage(Page):
         if getattr(canonical_target, 'canonical_page', False):
             canonical_target = canonical_target.canonical_page
 
+        translation_model = self.get_translation_model()
+
         for page in translations:
             # get target because at this point we assume the tree is in sync.
-            target = TranslatablePage.objects.filter(
+            target = translation_model.objects.filter(
                 Q(language=page.language),
                 Q(canonical_page=canonical_target) | Q(pk=canonical_target.pk)
             ).get()
@@ -225,8 +203,9 @@ class TranslatablePage(Page):
         :return: TranslatablePage instance
 
         """
+        translation_model = self.get_translation_model()
         canonical_page_id = self.canonical_page_id or self.pk
-        translations = TranslatablePage.objects.filter(Q(canonical_page=canonical_page_id) | Q(pk=canonical_page_id))
+        translations = translation_model.objects.filter(Q(canonical_page=canonical_page_id) | Q(pk=canonical_page_id))
 
         if not include_self:
             translations = translations.exclude(pk=self.pk)
@@ -243,19 +222,28 @@ class TranslatablePage(Page):
         :return: Boolean
 
         """
-        return language.pages.filter(canonical_page=self).exists()
+        translation_model = self.get_translation_model()
+        return translation_model.objects.filter(language=language, canonical_page=self).exists()
 
     def get_translation_parent(self, language):
         site = self.get_site()
         if not language.has_pages_in_site(site):
             return site.root_page
 
-        translation_parent = (
-            TranslatablePage.objects
-            .filter(canonical_page=self.get_parent(), language=language, path__startswith=site.root_page.path)
+        parent = self.get_parent()
+        parent_class = parent.specific_class
+
+        if not issubclass(parent_class, TranslatableMixin):
+            # Parent is not translatable
+            return parent
+
+        parent_translation_model = parent_class.get_translation_model()
+
+        return (
+            parent_translation_model.objects
+            .filter(canonical_page=parent, language=language, path__startswith=site.root_page.path)
             .first()
         )
-        return translation_parent
 
     def create_translation(self, language, copy_fields=False, parent=None):
         """Create a translation for this page. If tree syncing is enabled the
@@ -299,6 +287,18 @@ class TranslatablePage(Page):
 
         return new_page
 
+    @classmethod
+    def get_translation_model(self):
+        """
+        Gets the model which manages the translations for this model.
+
+        (The model that has the "canonical_page" and "language" fields)
+
+        For page models that inherit from TranslatedPage, this is always TranslatedPage.
+        For page models that inherit from TranslatableMixin,this is always the page model
+        """
+        return self._meta.get_field('language').model
+
     @cached_property
     def has_translations(self):
         return self.translations.exists()
@@ -306,6 +306,35 @@ class TranslatablePage(Page):
     @cached_property
     def is_canonical(self):
         return not self.canonical_page_id and self.has_translations
+
+    class Meta:
+        abstract = True
+
+
+class TranslatablePage(TranslatableMixin, Page):
+    #: Defined with a unique name, to prevent field clashes..
+    translatable_page_ptr = models.OneToOneField(Page, parent_link=True, related_name='+', on_delete=models.CASCADE)
+    is_creatable = False
+
+    search_fields = Page.search_fields + [
+        FilterField('language_id'),
+    ]
+
+    settings_panels = Page.settings_panels + [
+        MultiFieldPanel(
+            heading=_("Translations"),
+            children=[
+                FieldPanel('language'),
+                PageChooserPanel('canonical_page'),
+            ]
+        )
+    ]
+
+    base_form_class = AdminTranslatablePageForm
+
+    def serve(self, request, *args, **kwargs):
+        activate(self.language.code)
+        return super(TranslatablePage, self).serve(request, *args, **kwargs)
 
     class Meta:
         verbose_name = _('Translatable page')
